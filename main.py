@@ -1,10 +1,20 @@
 from fastapi import FastAPI, HTTPException, status, Query
+from fastapi.middleware.cors import CORSMiddleware 
 from pydantic import BaseModel
 from typing import List, Optional
 
 app = FastAPI(title="Football API", version="1.0.0")
 
-# --- 1. Моделі (Сутності та зв'язки) ---
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 class LeagueCreate(BaseModel):
     name: str
 
@@ -28,7 +38,11 @@ class MatchCreate(BaseModel):
 class Match(MatchCreate):
     id: int
 
-# --- 2. Імітація БД ---
+
+class LoginData(BaseModel):
+    username: str
+    password: str
+
 leagues_db: List[League] = [League(id=1, name="УПЛ")]
 teams_db: List[Team] = [
     Team(id=1, league_id=1, name="Динамо", power_rating=85.5),
@@ -36,7 +50,13 @@ teams_db: List[Team] = [
 ]
 matches_db: List[Match] = []
 
-# --- 3. CRUD для Команд (з фільтрацією, сортуванням, пагінацією) ---
+
+@app.post("/login")
+def login(data: LoginData):
+    if data.username == "admin" and data.password == "admin":
+     
+        return {"token": "my-super-secret-token"}
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Невірний логін або пароль")
 
 @app.post("/teams/", response_model=Team, status_code=status.HTTP_201_CREATED)
 def create_team(team: TeamCreate):
@@ -81,3 +101,35 @@ def delete_team(team_id: int):
             del teams_db[i]
             return
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Команду не знайдено")
+
+users_db = [{"username": "admin", "password": "admin"}]
+
+class LoginData(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/register", status_code=status.HTTP_201_CREATED)
+def register(data: LoginData):
+   
+    for u in users_db:
+        if u["username"] == data.username:
+            raise HTTPException(status_code=400, detail="Користувач з таким логіном вже існує")
+   
+    users_db.append({"username": data.username, "password": data.password})
+    return {"message": "Користувача успішно створено"}
+
+@app.get("/users/")
+def get_users():
+    
+    return users_db
+
+
+@app.post("/login")
+def login(data: LoginData):
+    for u in users_db:
+        if u["username"] == data.username and u["password"] == data.password:
+     
+            return {"token": f"secret-token-for-{data.username}"}
+            
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Невірний логін або пароль")
